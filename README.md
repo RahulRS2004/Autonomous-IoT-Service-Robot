@@ -47,6 +47,7 @@ The robot is developed using ESP8266, ultrasonic sensing, and IoT-based wireless
 | 3V3 | ENA |
 | 3V3 | ENB |
 | GND | GND |
+IF ENA and ENA has JUMPER CAPS THEN ABOVE CONNECTION OF ENA and ENB is not needed
 
 ---
 
