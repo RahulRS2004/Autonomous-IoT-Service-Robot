@@ -100,5 +100,3 @@ Robot maintains distance from nearby object.
 
 ---
 
-# 👨‍💻 Developed By
-Rahul Raghunatha Shettigar
