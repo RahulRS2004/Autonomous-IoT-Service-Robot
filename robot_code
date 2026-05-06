@@ -1,0 +1,290 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+
+// ===== MOTOR PINS =====
+#define L1 5    // D1
+#define L2 4    // D2
+#define R1 14   // D5
+#define R2 12   // D6
+
+// ===== ULTRASONIC =====
+#define TRIG 13   // D7
+#define ECHO 15   // D8
+
+const char* ssid = "RobotBot";
+const char* password = "12345678";
+
+ESP8266WebServer server(80);
+
+String mode = "STOP";
+
+long duration;
+int distance;
+
+unsigned long previousMillis = 0;
+const long interval = 50;
+
+// ===== SETUP =====
+void setup() {
+
+  Serial.begin(115200);
+
+  pinMode(L1, OUTPUT);
+  pinMode(L2, OUTPUT);
+  pinMode(R1, OUTPUT);
+  pinMode(R2, OUTPUT);
+
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+
+  stopRobot();
+
+  WiFi.softAP(ssid, password);
+
+  Serial.println("WiFi Started");
+  Serial.println(WiFi.softAPIP());
+
+  // ===== WEB PAGE =====
+  server.on("/", []() {
+
+    server.send(200, "text/html", R"rawliteral(
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Robot Control</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+body{
+background:#08111f;
+font-family:Arial;
+text-align:center;
+color:white;
+}
+
+button{
+width:130px;
+height:55px;
+margin:8px;
+font-size:16px;
+border:none;
+border-radius:12px;
+background:#00bfff;
+color:white;
+font-weight:bold;
+}
+
+.mode{
+background:#7c3aed;
+}
+
+.stop{
+background:red;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>🤖 ROBOT CONTROL</h1>
+
+<h2>Select Mode</h2>
+
+<button class='mode' onclick="fetch('/MANUAL')">MANUAL</button>
+
+<button class='mode' onclick="fetch('/AUTO')">AUTO</button>
+
+<button class='mode' onclick="fetch('/FOLLOW')">FOLLOW</button>
+
+<h2>Manual Control</h2>
+
+<button onclick="fetch('/F')">FORWARD</button><br>
+
+<button onclick="fetch('/L')">LEFT</button>
+
+<button class='stop' onclick="fetch('/S')">STOP</button>
+
+<button onclick="fetch('/R')">RIGHT</button><br>
+
+<button onclick="fetch('/B')">BACKWARD</button>
+
+</body>
+
+</html>
+
+)rawliteral");
+
+  });
+
+  // ===== MODES =====
+
+  server.on("/MANUAL", []() {
+    mode = "MANUAL";
+    stopRobot();
+  });
+
+  server.on("/AUTO", []() {
+    mode = "AUTO";
+  });
+
+  server.on("/FOLLOW", []() {
+    mode = "FOLLOW";
+  });
+
+  // ===== MANUAL CONTROL =====
+
+  server.on("/F", []() {
+    if(mode == "MANUAL")
+      moveForward();
+  });
+
+  server.on("/B", []() {
+    if(mode == "MANUAL")
+      moveBackward();
+  });
+
+  server.on("/L", []() {
+    if(mode == "MANUAL")
+      turnLeft();
+  });
+
+  server.on("/R", []() {
+    if(mode == "MANUAL")
+      turnRight();
+  });
+
+  server.on("/S", []() {
+    stopRobot();
+  });
+
+  server.begin();
+}
+
+// ===== DISTANCE FUNCTION =====
+
+int getDistance() {
+
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+
+  digitalWrite(TRIG, LOW);
+
+  duration = pulseIn(ECHO, HIGH, 30000);
+
+  if(duration == 0)
+    return 200;
+
+  return duration * 0.034 / 2;
+}
+
+// ===== MOTOR FUNCTIONS =====
+
+void moveForward() {
+
+  digitalWrite(L1, LOW);
+  digitalWrite(L2, HIGH);
+
+  digitalWrite(R1, LOW);
+  digitalWrite(R2, HIGH);
+}
+
+void moveBackward() {
+
+  digitalWrite(L1, HIGH);
+  digitalWrite(L2, LOW);
+
+  digitalWrite(R1, HIGH);
+  digitalWrite(R2, LOW);
+}
+
+void turnLeft() {
+
+  digitalWrite(L1, LOW);
+  digitalWrite(L2, HIGH);
+
+  digitalWrite(R1, LOW);
+  digitalWrite(R2, LOW);
+}
+
+void turnRight() {
+
+  digitalWrite(L1, LOW);
+  digitalWrite(L2, LOW);
+
+  digitalWrite(R1, LOW);
+  digitalWrite(R2, HIGH);
+}
+
+void stopRobot() {
+
+  digitalWrite(L1, LOW);
+  digitalWrite(L2, LOW);
+
+  digitalWrite(R1, LOW);
+  digitalWrite(R2, LOW);
+}
+
+// ===== MAIN LOOP =====
+
+void loop() {
+
+  server.handleClient();
+
+  unsigned long currentMillis = millis();
+
+  if(currentMillis - previousMillis >= interval) {
+
+    previousMillis = currentMillis;
+
+    distance = getDistance();
+
+    Serial.print("Distance: ");
+    Serial.print(distance);
+    Serial.println(" cm");
+
+    // ===== AUTO MODE =====
+
+    if(mode == "AUTO") {
+
+      if(distance < 20) {
+
+        Serial.println("Obstacle Detected");
+        Serial.println("Changing Direction...");
+
+        turnRight();
+
+        delay(300);
+      }
+
+      else {
+
+        moveForward();
+      }
+    }
+
+    // ===== FOLLOW MODE =====
+
+    else if(mode == "FOLLOW") {
+
+      if(distance > 15 && distance < 40) {
+
+        moveForward();
+      }
+
+      else {
+
+        stopRobot();
+      }
+    }
+  }
+}
